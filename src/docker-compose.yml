@@ -361,7 +361,21 @@ services:
     command: mlflow server --port 5500 --host 0.0.0.0 --backend-store-uri postgresql+psycopg2://mlflow:mlflow@postgres/mlflow --default-artifact-root s3://mlflow
     networks:
       - fraud-detection
+  
+  producer:
+    build: ./producer
+    env_file: .env
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1' 
+          memory: 1G
+    networks:
+      - fraud-detection
 
+
+  
 volumes:
   postgres-db-volume:
   minio_data:

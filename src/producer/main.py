@@ -3,7 +3,13 @@ from confluent_kafka import Producer
 from dotenv import load_dotenv
 import logging
 from faker import Faker
+import json
 import random
+import signal
+from typing import Dict, Any
+import time
+from datetime import datetime, timezone, timedelta
+from jsonschema import ValidationError, validate, FormatChecker
 
 logging.basicConfig(
     format= "%(asctime)s - %(levelname)s - %(module)s - %(message)s",
@@ -13,6 +19,25 @@ logging.basicConfig(
 logger = logging.getLogger(__name__) 
 load_dotenv(dotenv_path="/app/.env")
 fake = Faker()
+
+TRANSACTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "transaction_id": {"type":"string"},
+        "user_id":{"type":"number", "minimum":1000, "maximum":9999},
+        "amount": {"type":"number", "minimum":0.01, "maximum":100000},
+        "currency":{"type":"string", "pattern":"^[A-Z]{3}$"},
+        "merchant": {"type":"string"},
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "Location": {"type":"string", "pattern": "^[A-Z]{2}$"}
+    },
+    "required": ["transaction_id","user_id","amount","currency","timestamp", "is_fraud"]
+}
+
+
 
 
 class  TransactionProducer():
@@ -64,10 +89,20 @@ class  TransactionProducer():
             logger.error(f'Message delivery failed: {err}')
         else:
             logger.info(f'message delivered to {msg.topic()} [{msg.partition()}]')
+    def validate_transaction(self, transaction:Dict[str,Any]):
+        try: 
+            validate(
+                instance= transaction,
+                schema = TRANSACTION_SCHEMA,
+                format_checker= FormatChecker()
+            )
+        except ValidationError as e:
+            logger.error(f'Invalid transaction: {e.message}')
+
     def generate_transaction(self):
         transaction ={
             'transaction_id': fake.uuid4(),
-            'user_id':random.randint(a:1000, b:9999),
+            'user_id':random.randint(1000, 9999),
             'amount': round(fake.pyfloat(min_value=0.01, max_value=1000),2),
             'currency': 'USD',
             'merchant': fake.company(),
@@ -93,7 +128,7 @@ class  TransactionProducer():
         #card testing
         if not is_fraud and amount < 2.0:
             #simulate rapid small transactions
-            if user_id %1000 =0 and random.random() < 0.25:
+            if user_id % 1000 == 0 and random.random() < 0.25:
                 is_fraud = 1
                 transaction['amount'] = round(random.uniform(0.01, 2),2)
                 transaction['location'] = 'US'
@@ -110,7 +145,22 @@ class  TransactionProducer():
         if not is_fraud: 
             if user_id % 500 == 0 and random.random() < 0.1:
                 is_fraud =1 
-                transaction['location'] = random.choice
+                transaction['location'] = random.choice(['CN', 'RU', 'GB'])
+
+
+        # Baseline random fraud (0.1 - 0.3%)
+
+        if not is_fraud and random.random() < 0.002:
+            is_fraud = 1
+            transaction['amount'] = random.uniform(100,2000)
+        
+        #ensure that final fraud rate is between 1-2%
+        transaction['is_fraud'] = is_fraud if random.random() < 0.985 else 0
+
+        #validate modified transaction
+        if self.validate_transaction(transaction):
+            return transaction  
+
                 
 
 
@@ -124,7 +174,7 @@ class  TransactionProducer():
             if not transaction:
                 return False
 
-            self.producer.producer(
+            self.producer.produce(
                 self.topic,
                 key= transaction['transaction_id'],
                 value=json.dumps(transaction),
