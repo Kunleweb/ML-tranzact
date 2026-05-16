@@ -32,7 +32,8 @@ TRANSACTION_SCHEMA = {
             "type": "string",
             "format": "date-time"
         },
-        "Location": {"type":"string", "pattern": "^[A-Z]{2}$"}
+        "location": {"type":"string", "pattern": "^[A-Z]{2}$"},
+        "is_fraud":{"type":"integer", "minimum":0, "maximum":1}
     },
     "required": ["transaction_id","user_id","amount","currency","timestamp", "is_fraud"]
 }
@@ -42,7 +43,7 @@ TRANSACTION_SCHEMA = {
 
 class  TransactionProducer():
     def __init__(self):
-        self.bootstrap_servers= os.getenv('KAFKA_BOOSTRAP_SERVERS', 'localhost:9092')
+        self.bootstrap_servers= os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
         self.kafka_username= os.getenv('KAFKA_USERNAME')
         self.kafka_password= os.getenv('KAFKA_PASSWORD')
         self.topic = os.getenv('KAFKA_TOPIC', 'transactions')
@@ -51,7 +52,7 @@ class  TransactionProducer():
         #confluent kafka config
 
         self.producer_config = {
-            'boostrap.servers': self.bootstrap_servers,
+            'bootstrap.servers': self.bootstrap_servers,
             'client.id': 'transaction-producer',
             'compression.type': 'gzip',
             'linger.ms': '5',
@@ -90,14 +91,16 @@ class  TransactionProducer():
         else:
             logger.info(f'message delivered to {msg.topic()} [{msg.partition()}]')
     def validate_transaction(self, transaction:Dict[str,Any]):
-        try: 
+        try:
             validate(
                 instance= transaction,
                 schema = TRANSACTION_SCHEMA,
                 format_checker= FormatChecker()
             )
+            return True
         except ValidationError as e:
             logger.error(f'Invalid transaction: {e.message}')
+            return False
 
     def generate_transaction(self):
         transaction ={

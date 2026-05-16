@@ -10,31 +10,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
 WORKDIR /app
 
 
-#Install system dependices add libsasl2-dev here
+#Install runtime dependencies for SSL/SASL support
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      curl \
-      gnupg \
-      gcc \
-      g++ \
-      build-essential \
-      python3-dev \
       libssl-dev \
       libsasl2-dev \
-      pkg-config \
       && rm -rf /var/lib/apt/lists/*
-
-
-# Manually install librdkaf with SASL/SSL support 
-RUN curl -fsSl https://github.com/confluentinc/librdkafka/refs/tags/v2.8.0.tar.gaz -o librdkafka.tar.gaz \
-    tar -xzf librdkafka.tar.gz && \
-    cd librdkafka-2.8.0 && \
-    ./configure --enable-ssl --enable-sasl && \
-    make && \
-    make install && \
-    ldconfig && \ 
-    cd .. && \
-    rm -rf librdkafka-2.8.0 librdkafka.tar.gz
 
 # Copy requirements and install python dependencies 
 COPY ./requirements.txt /app/requirements.txt
