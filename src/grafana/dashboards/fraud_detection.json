@@ -1,0 +1,199 @@
+{
+  "uid": "fraud-detection-v1",
+  "title": "Fraud Detection - Live Monitor",
+  "tags": ["fraud", "ml", "kafka"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 2,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total Scored",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "uid": "fraud-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "unit": "short",
+          "mappings": []
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "textMode": "auto" },
+      "targets": [{
+        "datasource": { "uid": "fraud-postgres" },
+        "rawSql": "SELECT COUNT(*) AS value FROM fraud_predictions WHERE $__timeFilter(scored_at)",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Fraud Detected",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "uid": "fraud-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "red" },
+          "unit": "short",
+          "mappings": []
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "textMode": "auto" },
+      "targets": [{
+        "datasource": { "uid": "fraud-postgres" },
+        "rawSql": "SELECT SUM(is_fraud) AS value FROM fraud_predictions WHERE $__timeFilter(scored_at)",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Fraud Rate %",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "uid": "fraud-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 3 }] },
+          "unit": "percent",
+          "decimals": 2,
+          "mappings": []
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [{
+        "datasource": { "uid": "fraud-postgres" },
+        "rawSql": "SELECT ROUND(100.0 * SUM(is_fraud) / NULLIF(COUNT(*), 0), 2) AS value FROM fraud_predictions WHERE $__timeFilter(scored_at)",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Avg Fraud Probability",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "uid": "fraud-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 0.5 }, { "color": "red", "value": 0.8 }] },
+          "unit": "percentunit",
+          "decimals": 4,
+          "mappings": []
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
+      "targets": [{
+        "datasource": { "uid": "fraud-postgres" },
+        "rawSql": "SELECT ROUND(AVG(fraud_probability)::numeric, 4) AS value FROM fraud_predictions WHERE is_fraud = 1 AND $__timeFilter(scored_at)",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Model Version",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "uid": "fraud-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "purple" },
+          "mappings": []
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "textMode": "value" },
+      "targets": [{
+        "datasource": { "uid": "fraud-postgres" },
+        "rawSql": "SELECT model_version AS value FROM fraud_predictions ORDER BY scored_at DESC LIMIT 1",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Transaction Volume & Fraud Detections",
+      "gridPos": { "x": 0, "y": 4, "w": 16, "h": 8 },
+      "datasource": { "uid": "fraud-postgres" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2, "fillOpacity": 10 } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "fraud" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
+              { "id": "custom.fillOpacity", "value": 25 }
+            ]
+          }
+        ]
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{
+        "datasource": { "uid": "fraud-postgres" },
+        "rawSql": "SELECT $__timeGroupAlias(scored_at, 1m), COUNT(*) AS transactions, SUM(is_fraud) AS fraud FROM fraud_predictions WHERE $__timeFilter(scored_at) GROUP BY 1 ORDER BY 1",
+        "format": "time_series",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 7,
+      "type": "bargauge",
+      "title": "Fraud by Location",
+      "gridPos": { "x": 16, "y": 4, "w": 8, "h": 8 },
+      "datasource": { "uid": "fraud-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "blue", "value": null }, { "color": "orange", "value": 5 }, { "color": "red", "value": 20 }] },
+          "unit": "short"
+        }
+      },
+      "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "displayMode": "gradient" },
+      "targets": [{
+        "datasource": { "uid": "fraud-postgres" },
+        "rawSql": "SELECT location AS metric, SUM(is_fraud) AS \"value\" FROM fraud_predictions WHERE $__timeFilter(scored_at) GROUP BY location ORDER BY \"value\" DESC LIMIT 10",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Recent Fraud Alerts",
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+      "datasource": { "uid": "fraud-postgres" },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "fraud_probability" },
+            "properties": [
+              { "id": "unit", "value": "percentunit" },
+              { "id": "decimals", "value": 4 },
+              { "id": "custom.displayMode", "value": "color-background" },
+              { "id": "thresholds", "value": { "steps": [{ "color": "orange", "value": null }, { "color": "red", "value": 0.99 }] } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "amount" },
+            "properties": [{ "id": "unit", "value": "currencyUSD" }]
+          }
+        ]
+      },
+      "options": { "sortBy": [{ "displayName": "scored_at", "desc": true }] },
+      "targets": [{
+        "datasource": { "uid": "fraud-postgres" },
+        "rawSql": "SELECT scored_at, transaction_id, user_id, amount, merchant, location, fraud_probability, model_version FROM fraud_predictions WHERE is_fraud = 1 AND $__timeFilter(scored_at) ORDER BY scored_at DESC LIMIT 50",
+        "format": "table",
+        "refId": "A"
+      }]
+    }
+  ]
+}

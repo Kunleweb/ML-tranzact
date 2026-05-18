@@ -1,0 +1,10 @@
+confluent-kafka
+mlflow
+scikit-learn==1.6.1
+xgboost
+imbalanced-learn
+pandas
+numpy
+pyyaml
+python-dotenv
+boto3

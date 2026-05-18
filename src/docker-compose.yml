@@ -362,7 +362,7 @@ services:
       - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-    command: mlflow server --port 5500 --host 0.0.0.0 --backend-store-uri postgresql+psycopg2://mlflow:mlflow@postgres/mlflow --default-artifact-root s3://mlflow --allowed-hosts mlflow-server,mlflow-server:5500
+    command: mlflow server --port 5500 --host 0.0.0.0 --backend-store-uri postgresql+psycopg2://mlflow:mlflow@postgres/mlflow --default-artifact-root s3://mlflow --allowed-hosts mlflow-server,mlflow-server:5500,localhost,localhost:5500
     networks:
       - fraud-detection
   
@@ -381,12 +381,72 @@ services:
     networks:
       - fraud-detection
 
+  fraud-consumer:
+    build: ./consumer
+    restart: always
+    env_file: .env
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow-server:5500
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./.env:/app/.env
+    depends_on:
+      - mlflow-server
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    networks:
+      - fraud-detection
 
-  
+
+  predictions-sink:
+    build: ./predictions_sink
+    restart: always
+    env_file: .env
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      - PREDICTIONS_DB_URL=postgresql://airflow:airflow@postgres:5432/airflow
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./.env:/app/.env
+    depends_on:
+      - postgres
+    networks:
+      - fraud-detection
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: always
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - postgres
+    networks:
+      - fraud-detection
+
 volumes:
   postgres-db-volume:
   minio_data:
+  grafana_data:
 
 networks:
   fraud-detection:
-    driver: bridge 
+    driver: bridge
