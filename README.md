@@ -4,20 +4,6 @@ An end-to-end MLOps system that ingests live transaction data from Kafka, trains
 
 ---
 
-## Table of Contents
-
-- [Architecture Overview](#architecture-overview)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [ML Pipeline](#ml-pipeline)
-- [Getting Started](#getting-started)
-- [Service URLs](#service-urls)
-- [Screenshots](#screenshots)
-- [System Requirements](#system-requirements)
-- [Configuration](#configuration)
-
----
-
 ## Architecture Overview
 
 ![Architecture](./img/overall.png)
@@ -46,7 +32,7 @@ An end-to-end MLOps system that ingests live transaction data from Kafka, trains
 ## Project Structure
 
 ```
-fraudlytics/
+root/
 ├── src/
 │   ├── docker-compose.yml          # Full infrastructure definition (12+ services)
 │   ├── config.yaml                 # MLflow + Kafka configuration
@@ -58,7 +44,7 @@ fraudlytics/
 │   │
 │   ├── dags/
 │   │   ├── fraud_detection_training_dag.py   # Airflow DAG (3 tasks + promotion gate)
-│   │   └── fraud_detection_training.py       # Training class (Kafka → XGBoost → MLflow)
+│   │   └── fraud_detection_training.py       # Training class (Kafka > XGBoost > MLflow)
 │   │
 │   ├── producer/
 │   │   ├── main.py                 # Synthetic transaction generator
@@ -71,7 +57,7 @@ fraudlytics/
 │   │   └── requirements.txt
 │   │
 │   ├── predictions_sink/
-│   │   ├── main.py                 # Writes fraud_predictions → PostgreSQL
+│   │   ├── main.py                 # Writes fraud_predictions > PostgreSQL
 │   │   ├── Dockerfile
 │   │   └── requirements.txt
 │   │
@@ -91,16 +77,11 @@ fraudlytics/
 
 ## ML Pipeline
 
-### Training DAG (daily @ 03:00 UTC)
-
-```
-validate_environment → execute_training → promote_model → cleanup_resources
-```
-
+### Training DAG 
 | Task | Description |
 |---|---|
 | `validate_environment` | Confirms config and secrets are mounted |
-| `execute_training` | Full Kafka → feature engineering → XGBoost → MLflow pipeline |
+| `execute_training` | Full Kafka > feature engineering > XGBoost > MLflow pipeline |
 | `promote_model` | Compares new model F1 against current champion; promotes only if better |
 | `cleanup_resources` | Removes temporary artefacts |
 
@@ -111,19 +92,19 @@ Raw Kafka fields are enriched with the following features before training and in
 | Feature | Source | Description |
 |---|---|---|
 | `amount` | Raw | Transaction value |
-| `log_amount` | Engineered | `log1p(amount)` — reduces skew |
+| `log_amount` | Engineered | `log1p(amount)` : reduces skew |
 | `hour` | Timestamp | Hour of day (0–23) |
 | `day_of_week` | Timestamp | Day of week (0=Mon, 6=Sun) |
 | `is_weekend` | Timestamp | Binary flag |
 | `is_night` | Timestamp | 1 if hour ≥ 22 or ≤ 6 |
 | `user_id` | Raw | Numerical user identifier |
 | `currency` | Raw (encoded) | OrdinalEncoder |
-| `location` | Raw (encoded) | OrdinalEncoder — ISO2 country code |
+| `location` | Raw (encoded) | OrdinalEncoder : ISO2 country code |
 | `merchant` | Raw (encoded) | OrdinalEncoder |
 
 ### Fraud Simulation Patterns (Producer)
 
-The producer generates realistic fraud with a target rate of ~1–2%:
+The producer generates realistic fraud transactions with a target rate of ~1–2%:
 
 | Pattern | Weight | Description |
 |---|---|---|
@@ -132,7 +113,7 @@ The producer generates realistic fraud with a target rate of ~1–2%:
 | Merchant collusion | 20% | Large amounts at flagged merchants |
 | Geographic anomaly | 10% | Impossible location shifts |
 
-### Model Performance (v1 — trained on 332k transactions)
+### Model Performance (v1: trained on 900k+ transactions)
 
 | Metric | Value |
 |---|---|
@@ -157,7 +138,7 @@ The producer generates realistic fraud with a target rate of ~1–2%:
 
 ```bash
 git clone <repo-url>
-cd fraudlytics/src
+cd root/src
 ```
 
 ### 2. Configure environment variables
@@ -189,8 +170,6 @@ KAFKA_TOPIC=transactions
 docker compose up -d
 ```
 
-Allow ~2 minutes for all health checks to pass.
-
 ### 4. Trigger the first training run
 
 ```bash
@@ -212,7 +191,7 @@ The first run will:
 | Service | URL | Credentials |
 |---|---|---|
 | Airflow UI | http://localhost:8080 | airflow / airflow |
-| MLflow UI | http://localhost:5500 | — |
+| MLflow UI | http://localhost:5500 | |
 | Grafana Dashboard | http://localhost:3001 | admin / admin |
 | MinIO Console | http://localhost:9001 | minio / minio123 |
 
@@ -220,31 +199,25 @@ The first run will:
 
 ## Screenshots
 
-### Grafana — Live Fraud Monitoring Dashboard
+### Confluent Kafka — Transactions Topic
+![Transactions Topic](/img/transactions_topic.png)
+
+### Confluent Kafka — Fraud Prediction Topic
+![Fraud Topic](/img/fraud_precition_topic.png)
+
+### Grafana: Live Fraud Monitoring Dashboard
 <!-- Screenshot: Grafana dashboard showing transaction volume, fraud rate, recent fraud alerts table -->
-![Grafana Dashboard](./img/grafana_dashboard.png)
+![Grafana Dashboard](/img/grafana.png)
 
-### MLflow — Experiment Tracking & Model Registry
-<!-- Screenshot: MLflow experiment run showing metrics, parameters, confusion matrix and ROC curve -->
-![MLflow Experiments](./img/mlflow_experiments.png)
+### MLflow — Model training
+![MLflow Experiments](/img/mlflow.png)
 
-### MLflow — Registered Model with Champion Alias
-<!-- Screenshot: MLflow model registry showing fraud_detection_xgboost with champion alias -->
-![MLflow Model Registry](./img/mlflow_registry.png)
-
-### Airflow — Training DAG
-<!-- Screenshot: Airflow DAG graph showing validate_environment → execute_training → promote_model → cleanup_resources all green -->
-![Airflow DAG](./img/airflow_dag.png)
-
-### Airflow — Training Task Logs
-<!-- Screenshot: execute_training task logs showing Kafka consumption, CV iterations, and final metrics -->
-![Airflow Logs](./img/airflow_logs.png)
-
----
+### Minio — Model Registry
+![MLflow Model Registry](/img/minio.png)
 
 ## System Requirements
 
-### Minimum (development)
+### Minimum 
 
 | Resource | Requirement |
 |---|---|
@@ -252,23 +225,6 @@ The first run will:
 | RAM | 16 GB (8 GB allocated to Docker) |
 | Storage | 20 GB free |
 | GPU | Not required |
-
-### Recommended (production)
-
-| Resource | Requirement |
-|---|---|
-| CPU | 16 cores (Intel i9 / AMD Ryzen 9) |
-| RAM | 64 GB |
-| Storage | 1 TB SSD |
-| GPU | NVIDIA RTX 3090 (for deep learning extensions) |
-
-### Cloud equivalents
-
-| Provider | Instance |
-|---|---|
-| AWS | `g5.4xlarge` (GPU) or `m5.4xlarge` (CPU) |
-| Azure | `Standard_NC6s_v3` or `Standard_D16s_v3` |
-| GCP | `n2-standard-16` or `a2-highgpu-1g` |
 
 ---
 
