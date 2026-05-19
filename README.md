@@ -1,6 +1,6 @@
-# Fraudlytics — Real-Time Fraud Detection Pipeline
+# Real-Time Fraud Detection Pipeline
 
-An end-to-end MLOps system that ingests live transaction data from Kafka, trains an XGBoost fraud detection model on a daily schedule via Apache Airflow, serves real-time predictions through a dedicated inference consumer, and visualises results in a live Grafana dashboard — all containerised with Docker Compose.
+Production-grade real-time fraud detection platform featuring automated MLOps pipelines for training, model promotion, inference, and monitoring. 
 
 ---
 
@@ -199,20 +199,19 @@ The first run will:
 
 ## Screenshots
 
-### Confluent Kafka — Transactions Topic
+### Confluent Kafka: Transactions Topic
 ![Transactions Topic](/img/transactions_topic.png)
 
-### Confluent Kafka — Fraud Prediction Topic
+### Confluent Kafka: Fraud Prediction Topic
 ![Fraud Topic](/img/fraud_precition_topic.png)
 
 ### Grafana: Live Fraud Monitoring Dashboard
-<!-- Screenshot: Grafana dashboard showing transaction volume, fraud rate, recent fraud alerts table -->
 ![Grafana Dashboard](/img/grafana.png)
 
-### MLflow — Model training
+### MLflow: Model training
 ![MLflow Experiments](/img/mlflow.png)
 
-### Minio — Model Registry
+### Minio: Model Registry
 ![MLflow Model Registry](/img/minio.png)
 
 ## System Requirements
